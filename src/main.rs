@@ -4,6 +4,9 @@
 
 extern crate dsp;
 extern crate portaudio;
+extern crate rand;
+
+use std::io::{Stdin, Read};
 
 use dsp::{Graph, Node, Frame, FromSample, Sample, Walker};
 use dsp::sample::ToFrameSliceMut;
@@ -32,6 +35,7 @@ enum Command {
     Stop,
 }
 
+
 fn to_frequencies(character : char) -> Option<(Frequency, Frequency)> {
     match character {
         '1' => Some((1209.0, 697.0)),
@@ -56,11 +60,12 @@ fn to_frequencies(character : char) -> Option<(Frequency, Frequency)> {
 
 
 fn play(channel : &Sender<Command>, character : char) {
-    let (a, b) = to_frequencies(character).unwrap();
-    channel.send(Play(a, b)).unwrap();
-    std::thread::sleep(std::time::Duration::from_millis(200));
-    channel.send(Stop).unwrap();
-    std::thread::sleep(std::time::Duration::from_millis(100));
+    if let Some((a, b)) = to_frequencies(character) {
+        channel.send(Play(a, b)).unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(200));
+        channel.send(Stop).unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
 }
 
 
@@ -103,6 +108,7 @@ fn run() -> Result<(), pa::Error> {
 
                 pa::Continue
             }
+
             Ok(Stop) => {
                 if let DspNode::Oscillator(_, ref mut pitch, ref mut volume) = graph[oscillator_a] {
                     *volume = 0.0;
@@ -114,6 +120,7 @@ fn run() -> Result<(), pa::Error> {
 
                 pa::Continue
             }
+
             Err(std::sync::mpsc::TryRecvError::Empty) => {
                 pa::Continue
             }
@@ -130,14 +137,13 @@ fn run() -> Result<(), pa::Error> {
     let mut stream = try!(pa.open_non_blocking_stream(settings, callback));
     try!(stream.start());
 
-    for character in "123A456B789C*0#D".chars() {
-        play(&tx, character);
+    // Read
+    for character in std::io::stdin().bytes() {
+        play(&tx, character.unwrap() as char);
     }
 
-
-    // Wait for our stream to finish.
-    //while let true = try!(stream.is_active()) {
-    //    ::std::thread::sleep(::std::time::Duration::from_millis(16));
+    //for character in "123A456B789C*0#D".chars() {
+    //    play(&tx, character);
     //}
 
     Ok(())
